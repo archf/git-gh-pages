@@ -1,0 +1,186 @@
+#!/bin/sh
+
+# this will set set GIT_DIR and GIT_OBJECT_DIRECTORY shell variables, but does
+# not export them to the environment.
+. "$(git --exec-path)/git-sh-setup"
+
+VERSION=0.1.0
+GITREPO="$(git rev-parse --show-toplevel)"
+
+################
+### validations
+################
+
+# check if invoked while in a git dir
+
+# GITDIR=$(git rev-parse --git-dir)
+# if [ ! $? -eq 0 ] ; then
+#   exit 1
+# fi
+
+# if git rev-parse --git-dir > /dev/null 2>&1; then
+# else
+#   echo "git $(basename) command must be run inside a git repository...aborting"
+# fi
+
+if [ $# -eq 0 ]; then
+    set -- -h
+fi
+
+OPTS_SPEC="\
+git gh-pages <command> <options> <arguments>
+
+Commands:
+  init      Create orphan gh-pages branch
+  update    Rebuild documentation locally
+  push      Push local gh-pages changes upstream
+
+  status    Get status of a gh-pages
+
+  help      gh-pagesumentation for git-gh-pages (or specific command)
+  version   Display git-gh-pages version info
+
+See 'git help gh-pages' for complete doumentation and usage of each command.
+
+Options:
+--
+h           Show the command summary
+help        Help overview
+version     Print the git-gh-pages version number
+
+q,quiet     Show minimal output
+v,verbose   Show verbose output
+d,debug     Show the actual commands used
+x,DEBUG     Turn on -x Bash debugging
+
+ options for 'push'
+m,message=  Commit message
+
+ options for 'update'
+b,builder=  Build tool generates your gh-pages documation (default:=sphinx)
+o,opts=     Arguments literally passed to the builder tool
+"
+
+# see how we are called
+eval "$(echo "$OPTS_SPEC" | git rev-parse --parseopt -- "$@" || echo exit $?)"
+
+[ $DEBUG ] && echo "Top-level git repository: $GITREPO"
+
+require_work_tree_exists
+
+debug()
+{
+	if [ -n "$debug" ]; then
+		printf "%s\n" "$*" >&2
+	fi
+}
+
+command=
+message=
+builder=
+opts=
+
+debug "Options: $*"
+echo "$command"
+echo $#
+
+exit
+
+# parse options as
+# -- count as 1 arg
+
+# command Options, ex: -b sphinx -- push
+while [ $# -gt 0 ]; do
+	opt="$1"
+	shift
+	case "$opt" in
+		-q) quiet=1 ;;
+		-d) debug=1 ;;
+		-v) verbose=1 ;;
+		-b) builder="$1" ;;
+		--annotate) annotate="$1"; shift ;;
+		--no-annotate) annotate= ;;
+		-b) branch="$1"; shift ;;
+		-P) prefix="${1%/}"; shift ;;
+		-m) message="$1"; shift ;;
+		--no-prefix) prefix= ;;
+		--onto) onto="$1"; shift ;;
+		--no-onto) onto= ;;
+		--rejoin) rejoin=1 ;;
+		--) break ;;
+		*) die "Unexpected option: $opt" ;;
+	esac
+done
+
+command="$1"
+shift
+case "$command" in
+	add|merge|pull) default= ;;
+	split|push) default="--default HEAD" ;;
+	*) die "Unknown command '$command'" ;;
+esac
+
+# debug
+debug "command: {$command}"
+debug "quiet: {$quiet}"
+debug "dir: {$dir}"
+debug "opts: {$*}"
+debug
+
+echo $GIT_DIR
+echo $GIT_OBJECT_DIRECTORY
+
+function parse_args() {
+
+  while getopts "vht:m" opt
+  do
+    case $opt in
+        v ) DEBUG=0 ;;
+        h ) usage ;;
+        t ) ATP_SCRIPT=$OPTARG ;;
+        m ) MD_OUTPUT=true ;;
+        * ) usage ;;
+    esac
+  done
+
+# get the positional arg
+
+  # Move argument pointer to next.
+  shift $(($OPTIND - 1))
+  INPUT_FILE=$1
+}
+
+  if [ $# = 2 ]; then
+    NAME_NODES=$2
+  fi
+
+# inspired from
+# http://pressedpixels.com/articles/deploying-to-github-pages-with-git-worktree/
+# http://blog.jenkster.com/2016/02/git-for-static-sites.html
+
+# create a new gh-pages branch if it doesn't yet exist
+git checkout --orphan gh-pages
+
+# clear index as it gets populated from where you ran the checkout command
+git reset
+git commit --allow-empty -m 'Initial commit'
+git checkout --force master
+git worktree add gh-pages gh-pages
+
+# checkout gh-pages branch in gh-pages directory
+# master branch history will all be shared in the gh-pages branch
+# $1=dir
+# $2=branch
+# returns 255 if branch already exists
+git worktree add -b gh-pages gh-pages
+
+# make sure gh-pages is in .gitignore?
+
+git tag v0.0.1
+cd gh-pagess && make html
+git add --all
+git commit -m 'Deploy v0.0.1'
+git push
+cd ..
+
+git worktree add -b gh-pages

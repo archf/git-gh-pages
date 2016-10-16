@@ -1,27 +1,15 @@
 #!/bin/sh
 
+# inspired from
+# http://pressedpixels.com/articles/deploying-to-github-pages-with-git-worktree/
+# http://blog.jenkster.com/2016/02/git-for-static-sites.html
+
 # this will set set GIT_DIR and GIT_OBJECT_DIRECTORY shell variables, but does
 # not export them to the environment.
 . "$(git --exec-path)/git-sh-setup"
 
 VERSION=0.1.0
 GITREPO="$(git rev-parse --show-toplevel)"
-
-################
-### validations
-################
-
-# check if invoked while in a git dir
-
-# GITDIR=$(git rev-parse --git-dir)
-# if [ ! $? -eq 0 ] ; then
-#   exit 1
-# fi
-
-# if git rev-parse --git-dir > /dev/null 2>&1; then
-# else
-#   echo "git $(basename) command must be run inside a git repository...aborting"
-# fi
 
 if [ $# -eq 0 ]; then
     set -- -h
@@ -37,7 +25,7 @@ Commands:
 
   status    Get status of a gh-pages
 
-  help      gh-pagesumentation for git-gh-pages (or specific command)
+  help      gh-pages documentation for git-gh-pages
   version   Display git-gh-pages version info
 
 See 'git help gh-pages' for complete doumentation and usage of each command.
@@ -51,10 +39,6 @@ version     Print the git-gh-pages version number
 q,quiet     Show minimal output
 v,verbose   Show verbose output
 d,debug     Show the actual commands used
-x,DEBUG     Turn on -x Bash debugging
-
- options for 'push'
-m,message=  Commit message
 
  options for 'update'
 b,builder=  Build tool generates your gh-pages documation (default:=sphinx)
@@ -63,8 +47,6 @@ o,opts=     Arguments literally passed to the builder tool
 
 # see how we are called
 eval "$(echo "$OPTS_SPEC" | git rev-parse --parseopt -- "$@" || echo exit $?)"
-
-[ $DEBUG ] && echo "Top-level git repository: $GITREPO"
 
 require_work_tree_exists
 
@@ -75,112 +57,166 @@ debug()
 	fi
 }
 
+version()
+{
+	if [ -n "$version" ]; then
+		printf "%s\n" "$*"
+    exit 0
+  fi
+}
+
 command=
 message=
-builder=
+builder=sphinx
 opts=
 
-debug "Options: $*"
-echo "$command"
-echo $#
+# echo "arglist: $*"
 
-exit
+# arglist will be something like: -b sphinx -- push
 
-# parse options as
-# -- count as 1 arg
-
-# command Options, ex: -b sphinx -- push
+# parse command options
 while [ $# -gt 0 ]; do
 	opt="$1"
 	shift
 	case "$opt" in
 		-q) quiet=1 ;;
-		-d) debug=1 ;;
-		-v) verbose=1 ;;
-		-b) builder="$1" ;;
-		--annotate) annotate="$1"; shift ;;
-		--no-annotate) annotate= ;;
-		-b) branch="$1"; shift ;;
-		-P) prefix="${1%/}"; shift ;;
+		-v) debug=1 ;;
+    -d) debug=1 ;;
+		--version) version=1 ;;
+		-h|--help) help=1 ;;
+		-b|--builder) builder="$1"; shift ;;
+		-o|--opts) buildopts="$1"; shift ;;
+		-b|--branch) branch="$1"; shift ;;
 		-m) message="$1"; shift ;;
-		--no-prefix) prefix= ;;
-		--onto) onto="$1"; shift ;;
-		--no-onto) onto= ;;
-		--rejoin) rejoin=1 ;;
+		--message) message="$1"; shift ;;
 		--) break ;;
 		*) die "Unexpected option: $opt" ;;
 	esac
 done
 
+version $(basename $0) $VERSION
+
+debug "Subcommand: $*"
+debug
+
+# parse the subcommand
 command="$1"
 shift
+
 case "$command" in
-	add|merge|pull) default= ;;
-	split|push) default="--default HEAD" ;;
+	init|update|push) ;;
 	*) die "Unknown command '$command'" ;;
 esac
 
 # debug
-debug "command: {$command}"
-debug "quiet: {$quiet}"
-debug "dir: {$dir}"
-debug "opts: {$*}"
+debug "GIR_DIR: $GIT_DIR"
+debug "GIT_OBJECT_DIRECTORY: $GIT_OBJECT_DIRECTORY"
+debug "command: $command"
 debug
 
-echo $GIT_DIR
-echo $GIT_OBJECT_DIRECTORY
-
-function parse_args() {
-
-  while getopts "vht:m" opt
-  do
-    case $opt in
-        v ) DEBUG=0 ;;
-        h ) usage ;;
-        t ) ATP_SCRIPT=$OPTARG ;;
-        m ) MD_OUTPUT=true ;;
-        * ) usage ;;
-    esac
-  done
-
-# get the positional arg
-
-  # Move argument pointer to next.
-  shift $(($OPTIND - 1))
-  INPUT_FILE=$1
+rev_exists()
+{
+	if git rev-parse "$1" >/dev/null 2>&1; then
+		return 0
+	else
+		return 1
+	fi
 }
 
-  if [ $# = 2 ]; then
-    NAME_NODES=$2
+worktree_exists()
+{
+  local worktree=$1
+  local found=
+
+  debug "looking if worktree '$worktree' exists..."
+  # this should spit a list of unquoted strings
+  for i in $(git worktree list --porcelain)
+  do
+    if [ $i = ${GITREPO}/${worktree} ]
+    then
+      debug "found: $i"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# initialyse worktree
+_init()
+{
+  if ! rev_exists "gh-pages"; then
+    # create a new gh-pages branch if it doesn't yet exist
+    git checkout -q --orphan gh-pages
+
+    # the new branch
+    # don't do a 'git rm -rf .' as it will affect stuff in master branch
+    git reset
+
+    git commit  --allow-empty -m 'Initial empty commit'
+    # unfortunatly this checkouts the branch wich is not what we want. we have
+    # to switch back to master
+    git checkout -q -f master
   fi
 
-# inspired from
-# http://pressedpixels.com/articles/deploying-to-github-pages-with-git-worktree/
-# http://blog.jenkster.com/2016/02/git-for-static-sites.html
+  # prepare an empty dir by the branch name
+  # mkdir -p ${GITREPO}/gh-pages
 
-# create a new gh-pages branch if it doesn't yet exist
-git checkout --orphan gh-pages
+  # master branch history will all be shared in the gh-pages branch
+  # # checkout gh-pages branch in gh-pages directory
+  # $1=path
+  # $2=branch
+  # returns 255 if branch already exists checkout the branch in the directory
+  if ! worktree_exists "gh-pages"
+  then
+    git worktree add gh-pages gh-pages
+  fi
 
-# clear index as it gets populated from where you ran the checkout command
-git reset
-git commit --allow-empty -m 'Initial commit'
-git checkout --force master
-git worktree add gh-pages gh-pages
+  # make sure gh-pages is in .gitignore for master branch not to track it
+  if [ -e "${GITREPO}/.gitignore" ]; then
+    if ! grep -q -o "gh-pages" "${GITREPO}/.gitignore"
+      then
+      echo "gh-pages" >> ${GITREPO}/.gitignore
+    fi
+  fi
+}
 
-# checkout gh-pages branch in gh-pages directory
-# master branch history will all be shared in the gh-pages branch
-# $1=dir
-# $2=branch
-# returns 255 if branch already exists
-git worktree add -b gh-pages gh-pages
+_push()
+{
+  git push -u origin gh-pages
+}
 
-# make sure gh-pages is in .gitignore?
+_sphinxbuild()
+{
+  local SPHINXBUILD="sphinx-build"
+  local SPHINXSOURCEDIR="$GITREPO/docs"
+  local BUILDDIR="$GITREPO/gh-pages"
 
-git tag v0.0.1
-cd gh-pagess && make html
-git add --all
-git commit -m 'Deploy v0.0.1'
-git push
-cd ..
+  # Usage: sphinx-build [options] sourcedir outdir
+  # -b BUILDER        builder to use; default is html
+  # -d PATH           path for the cached environment and doctree files
+  $SPHINXBUILD -b html -d $SPHINXSOURCEDIR/doctrees $SPHINXSOURCEDIR $BUILDDIR
+  echo
+  echo "Sphinx build finished. The HTML pages are in $BUILDDIR."
+}
 
-git worktree add -b gh-pages
+_update()
+{
+  # build
+  debug "builder: $builder"
+
+  case $builder in
+
+    sphinx) _sphinxbuild ;;
+
+    *) die "Unexpected builder: $builder";;
+  esac
+
+  # commit
+  cd $GITREPO/gh-pages
+  git add --all
+  # fixme: don't show commit template in empty commit message
+  git commit --template=/dev/null --allow-empty-message -m ''
+  cd -
+}
+
+"_$command" "$@"

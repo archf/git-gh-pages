@@ -1,3 +1,4 @@
+```
 usage: git gh-pages <command> <options> <arguments>
 
     Commands:
@@ -28,4 +29,4 @@ options for 'push'
 options for 'update'
     -b, --builder ...     Build tool generates your gh-pages documation (default:=sphinx)
     -o, --opts ...        Arguments literally passed to the builder tool
-
+```

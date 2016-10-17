@@ -8,7 +8,7 @@
 # not export them to the environment.
 . "$(git --exec-path)/git-sh-setup"
 
-VERSION=0.1.0
+VERSION=0.1.1
 GITREPO="$(git rev-parse --show-toplevel)"
 
 if [ $# -eq 0 ]; then
@@ -19,14 +19,12 @@ OPTS_SPEC="\
 git gh-pages <command> <options> <arguments>
 
 Commands:
-  init      Create orphan gh-pages branch
-  update    Rebuild documentation locally
+  init      Create orphan gh-pages branch with empty commit
+  update    Rebuild documentation locally using an external build tool
   push      Push local gh-pages changes upstream
 
-  status    Get status of a gh-pages
-
   help      gh-pages documentation for git-gh-pages
-  version   Display git-gh-pages version info
+  version   Display git-gh-pages version
 
 See 'git help gh-pages' for complete doumentation and usage of each command.
 
@@ -38,7 +36,6 @@ version     Print the git-gh-pages version number
 
 q,quiet     Show minimal output
 v,verbose   Show verbose output
-d,debug     Show the actual commands used
 
  options for 'update'
 b,builder=  Build tool generates your gh-pages documation (default:=sphinx)
@@ -111,6 +108,7 @@ esac
 # debug
 debug "GIR_DIR: $GIT_DIR"
 debug "GIT_OBJECT_DIRECTORY: $GIT_OBJECT_DIRECTORY"
+debug "GIRREPO: $GITREPO"
 debug "command: $command"
 debug
 
@@ -173,10 +171,20 @@ _init()
 
   # make sure gh-pages is in .gitignore for master branch not to track it
   if [ -e "${GITREPO}/.gitignore" ]; then
-    if ! grep -q -o "gh-pages" "${GITREPO}/.gitignore"
-      then
-      echo "gh-pages" >> ${GITREPO}/.gitignore
+    if grep -q -o "gh-pages" "${GITREPO}/.gitignore"
+    then
+      debug "found gh-pages entry in .gitignore"
+      return 0
+    else
+      debug "gh-pages entry not found in .gitignore"
+      found=1
     fi
+  fi
+
+  if [ -n $found ]
+  then
+    debug "adding gh-pages entry in .gitignore"
+    echo "gh-pages" >> ${GITREPO}/.gitignore
   fi
 }
 
@@ -185,7 +193,7 @@ _push()
   git push -u origin gh-pages
 }
 
-_sphinxbuild()
+sphinxbuild()
 {
   local SPHINXBUILD="sphinx-build"
   local SPHINXSOURCEDIR="$GITREPO/docs"
@@ -195,7 +203,7 @@ _sphinxbuild()
   # -b BUILDER        builder to use; default is html
   # -d PATH           path for the cached environment and doctree files
   $SPHINXBUILD -b html -d $SPHINXSOURCEDIR/doctrees $SPHINXSOURCEDIR $BUILDDIR
-  echo
+  echio
   echo "Sphinx build finished. The HTML pages are in $BUILDDIR."
 }
 
@@ -204,17 +212,16 @@ _update()
   # build
   debug "builder: $builder"
 
+  # todo: implement -b and -o features
+
   case $builder in
-
-    sphinx) _sphinxbuild ;;
-
+    sphinx) sphinxbuild ;;
     *) die "Unexpected builder: $builder";;
   esac
 
   # commit
   cd $GITREPO/gh-pages
   git add --all
-  # fixme: don't show commit template in empty commit message
   git commit --template=/dev/null --allow-empty-message -m ''
   cd -
 }

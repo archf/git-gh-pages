@@ -1,3 +1,4 @@
 .PHONY: install
 install:
-	ln -s $(PWD)/git-gh-pages $(HOME)/bin/git-gh-pages
+	test -L $(HOME)/bin/git-gh-pages || ln -s $(PWD)/git-gh-pages $(HOME)/bin/git-gh-pages
+	@echo "...All done!"

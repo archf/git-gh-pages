@@ -12,7 +12,7 @@ VERSION=0.1.1
 GITREPO="$(git rev-parse --show-toplevel)"
 
 if [ $# -eq 0 ]; then
-    set -- -h
+  set -- -h
 fi
 
 OPTS_SPEC="\
@@ -49,15 +49,15 @@ require_work_tree_exists
 
 debug()
 {
-	if [ -n "$debug" ]; then
-		printf "%s\n" "$*" >&2
-	fi
+  if [ -n "$debug" ]; then
+    printf "%s\n" "$*" >&2
+  fi
 }
 
 version()
 {
-	if [ -n "$version" ]; then
-		printf "%s\n" "$*"
+  if [ -n "$version" ]; then
+    printf "%s\n" "$*"
     exit 0
   fi
 }
@@ -73,22 +73,22 @@ opts=
 
 # parse command options
 while [ $# -gt 0 ]; do
-	opt="$1"
-	shift
-	case "$opt" in
-		-q) quiet=1 ;;
-		-v) debug=1 ;;
+  opt="$1"
+  shift
+  case "$opt" in
+    -q) quiet=1 ;;
+    -v) debug=1 ;;
     -d) debug=1 ;;
-		--version) version=1 ;;
-		-h|--help) help=1 ;;
-		-b|--builder) builder="$1"; shift ;;
-		-o|--opts) buildopts="$1"; shift ;;
-		-b|--branch) branch="$1"; shift ;;
-		-m) message="$1"; shift ;;
-		--message) message="$1"; shift ;;
-		--) break ;;
-		*) die "Unexpected option: $opt" ;;
-	esac
+    --version) version=1 ;;
+    -h|--help) help=1 ;;
+    -b|--builder) builder="$1"; shift ;;
+    -o|--opts) buildopts="$1"; shift ;;
+    -b|--branch) branch="$1"; shift ;;
+    -m) message="$1"; shift ;;
+    --message) message="$1"; shift ;;
+    --) break ;;
+    *) die "Unexpected option: $opt" ;;
+  esac
 done
 
 version $(basename $0) $VERSION
@@ -101,8 +101,8 @@ command="$1"
 shift
 
 case "$command" in
-	init|update|push) ;;
-	*) die "Unknown command '$command'" ;;
+  init|update|push) ;;
+  *) die "Unknown command '$command'" ;;
 esac
 
 # debug
@@ -114,11 +114,11 @@ debug
 
 rev_exists()
 {
-	if git rev-parse "$1" >/dev/null 2>&1; then
-		return 0
-	else
-		return 1
-	fi
+  if git rev-parse "$1" >/dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
 }
 
 worktree_exists()
@@ -184,6 +184,7 @@ _init()
   if [ -n $found ]
   then
     debug "adding gh-pages entry in .gitignore"
+    debug
     echo "gh-pages" >> ${GITREPO}/.gitignore
   fi
 }
@@ -203,7 +204,6 @@ sphinxbuild()
   # -b BUILDER        builder to use; default is html
   # -d PATH           path for the cached environment and doctree files
   $SPHINXBUILD -b html -d $SPHINXSOURCEDIR/doctrees $SPHINXSOURCEDIR $BUILDDIR
-  echio
   echo "Sphinx build finished. The HTML pages are in $BUILDDIR."
 }
 

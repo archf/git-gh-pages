@@ -8,7 +8,7 @@
 # not export them to the environment.
 . "$(git --exec-path)/git-sh-setup"
 
-VERSION=0.1.1
+VERSION=0.1.2
 GITREPO="$(git rev-parse --show-toplevel)"
 
 if [ $# -eq 0 ]; then
@@ -38,7 +38,7 @@ q,quiet     Show minimal output
 v,verbose   Show verbose output
 
  options for 'update'
-b,builder=  Build tool generates your gh-pages documation (default:=sphinx)
+b,builder=  Doc builder {sphinx|mkdocs} (default:=sphinx)
 o,opts=     Arguments literally passed to the builder tool
 "
 
@@ -94,7 +94,6 @@ done
 version $(basename $0) $VERSION
 
 debug "Subcommand: $*"
-debug
 
 # parse the subcommand
 command="$1"
@@ -196,26 +195,48 @@ _push()
 
 sphinxbuild()
 {
-  local SPHINXBUILD="sphinx-build"
   local SPHINXSOURCEDIR="$GITREPO/docs"
-  local BUILDDIR="$GITREPO/gh-pages"
 
   # Usage: sphinx-build [options] sourcedir outdir
   # -b BUILDER        builder to use; default is html
   # -d PATH           path for the cached environment and doctree files
-  $SPHINXBUILD -b html -d $SPHINXSOURCEDIR/doctrees $SPHINXSOURCEDIR $BUILDDIR
+  sphinx-build -b html -d $SPHINXSOURCEDIR/doctrees $SPHINXSOURCEDIR $BUILDDIR
   echo "Sphinx build finished. The HTML pages are in $BUILDDIR."
+}
+
+mkdocsbuild()
+{
+  # must be called
+
+  # Usage: mkdocs build [OPTIONS]
+
+  # Options:
+  #   --dirty                         Faster build, do not clean site-dir
+  #   -f, --config-file FILENAME      Provide a specific MkDocs config
+  #   -s, --strict                    Enable strict mode. This will cause MkDocs
+  #                                   to abort the build on any warnings.
+  #   -t, --theme [readthedocs|mkdocs]
+  #                                   The theme to use when building your
+  #                                   documentation.
+  #   -d, --site-dir PATH             The directory to output the result of the build
+
+  cd $GITREPO
+  mkdocs build --site-dir $BUILDDIR
+  cd -
 }
 
 _update()
 {
+  # todo: implement -o features
+  BUILDDIR="$GITREPO/gh-pages"
+
   # build
   debug "builder: $builder"
-
-  # todo: implement -b and -o features
+  debug "buildir: $BUILDDIR"
 
   case $builder in
     sphinx) sphinxbuild ;;
+    mkdocs) mkdocsbuild ;;
     *) die "Unexpected builder: $builder";;
   esac
 

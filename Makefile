@@ -1,4 +1,12 @@
-.PHONY: install
-install:
-	test -L $(HOME)/bin/git-gh-pages || ln -s $(PWD)/git-gh-pages $(HOME)/bin/git-gh-pages
-	@echo "...All done!"
+BIN = ~/bin/git-gh-pages
+
+.PHONY: install update
+
+update:
+	@git pull --rebase
+
+install: $(BIN)
+
+$(BIN):
+	ln -s $(PWD)/$(@F) $@
+	@echo "All done! Make sure ~/bin is in your PATH"
